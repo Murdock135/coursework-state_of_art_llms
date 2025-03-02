@@ -44,4 +44,6 @@ Thumbs.db
 
 # Project specific
 plots/archive/
+plots/*.png
+!plots/examples/*.png
 results/*.json

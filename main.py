@@ -5,10 +5,15 @@ with various point distributions.
 import argparse
 import os
 
-from algorithm import orthogonal_equipartition, count_points_in_quadrants, is_equipartition_valid
+from algorithm import (
+    orthogonal_equipartition, 
+    orthogonal_equipartition_efficient, 
+    count_points_in_quadrants, 
+    is_equipartition_valid
+)
 from point_generators import get_generator
 from visualization import plot_result, plot_multiple_distributions
-from experiment import run_experiment
+from experiment import run_experiment, compare_algorithms
 
 
 def parse_args():
@@ -42,6 +47,16 @@ def parse_args():
                         default=['uniform', 'gaussian', 'bimodal', 'circular', 'moons', 'grid'],
                         help='Distributions to test (default: uniform gaussian bimodal circular moons grid)')
     
+    parser.add_argument('--efficient', action='store_true',
+                        help='Use the efficient algorithm implementation')
+    
+    parser.add_argument('--compare', action='store_true',
+                        help='Run comparison between original and efficient algorithms')
+    
+    parser.add_argument('--point-sizes', type=int, nargs='+',
+                        default=[100, 200, 500, 1000, 2000],
+                        help='Point sizes to use for comparison (default: 100 200 500 1000 2000)')
+    
     return parser.parse_args()
 
 
@@ -49,18 +64,36 @@ if __name__ == "__main__":
     # Parse command line arguments
     args = parse_args()
     
-    # Run experiment with the specified parameters
-    print(f"\nTesting orthogonal equipartition algorithm with {args.points} points...")
-    
-    results, summary, experiment_id = run_experiment(
-        generator_names=args.distributions,
-        num_points=args.points,
-        num_trials=args.trials,
-        base_seed=args.seed,
-        plot_examples=not args.no_plots,
-        verbose=not args.quiet,
-        plots_dir=args.plots_dir,
-        results_dir=args.results_dir
-    )
-    
-    print(f"\nExperiment {experiment_id} completed successfully!")
+    if args.compare:
+        # Run comparison between algorithms
+        print(f"\nComparing original and efficient algorithms on {len(args.distributions)} distributions...")
+        print(f"Testing with point sizes: {args.point_sizes}")
+        
+        comparison_results = compare_algorithms(
+            generator_names=args.distributions,
+            num_points_list=args.point_sizes,
+            num_trials=args.trials,
+            base_seed=args.seed,
+            verbose=not args.quiet,
+            results_dir=args.results_dir
+        )
+        
+        print(f"\nAlgorithm comparison completed successfully!")
+    else:
+        # Run normal experiment with either the original or efficient algorithm
+        algorithm_name = "efficient" if args.efficient else "original"
+        print(f"\nTesting {algorithm_name} orthogonal equipartition algorithm with {args.points} points...")
+        
+        results, summary, experiment_id = run_experiment(
+            generator_names=args.distributions,
+            num_points=args.points,
+            num_trials=args.trials,
+            base_seed=args.seed,
+            plot_examples=not args.no_plots,
+            verbose=not args.quiet,
+            plots_dir=args.plots_dir,
+            results_dir=args.results_dir,
+            use_efficient=args.efficient
+        )
+        
+        print(f"\nExperiment {experiment_id} completed successfully!")

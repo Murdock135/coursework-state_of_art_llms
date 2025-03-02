@@ -6,7 +6,12 @@ import datetime
 from typing import Dict, List, Tuple, Callable, Optional, Any
 from collections import defaultdict
 
-from algorithm import orthogonal_equipartition, count_points_in_quadrants, is_equipartition_valid
+from algorithm import (
+    orthogonal_equipartition, 
+    orthogonal_equipartition_efficient, 
+    count_points_in_quadrants, 
+    is_equipartition_valid
+)
 from point_generators import get_generator
 from visualization import plot_result, plot_multiple_distributions
 
@@ -18,7 +23,8 @@ def run_experiment(generator_names: List[str],
                  plot_examples: bool = True,
                  verbose: bool = True,
                  plots_dir: str = "plots",
-                 results_dir: str = "results"):
+                 results_dir: str = "results",
+                 use_efficient: bool = False):
     """
     Run a comprehensive experiment testing the orthogonal equipartition algorithm.
     
@@ -31,11 +37,16 @@ def run_experiment(generator_names: List[str],
         verbose: Whether to print detailed output
         plots_dir: Directory to save plots
         results_dir: Directory to save results
+        use_efficient: Whether to use the efficient algorithm implementation
         
     Returns:
         Tuple of (all_results, summary)
     """
     n = num_points
+    
+    # Select the algorithm to use
+    algorithm = orthogonal_equipartition_efficient if use_efficient else orthogonal_equipartition
+    algorithm_name = "efficient" if use_efficient else "original"
     
     # Ensure directories exist
     os.makedirs(plots_dir, exist_ok=True)
@@ -46,10 +57,11 @@ def run_experiment(generator_names: List[str],
     
     # Create timestamp for this experiment run
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_id = f"exp_{n}pts_{timestamp}"
+    experiment_id = f"exp_{n}pts_{algorithm_name}_{timestamp}"
     
     if verbose:
         print(f"\nRunning tests with {n} points across {len(generator_names)} distributions")
+        print(f"Using algorithm: {algorithm_name}")
         print(f"Experiment ID: {experiment_id}")
         print("=" * 70)
         print(f"{'Distribution':<20} {'Trial':<6} {'Q1':<5} {'Q2':<5} {'Q3':<5} {'Q4':<5} {'Valid':<8} {'Time (s)':<10}")
@@ -73,7 +85,7 @@ def run_experiment(generator_names: List[str],
             
             # Measure execution time
             start_time = time.time()
-            center, slope = orthogonal_equipartition(points)
+            center, slope = algorithm(points)
             execution_time = time.time() - start_time
             
             # Count points in quadrants
@@ -93,7 +105,8 @@ def run_experiment(generator_names: List[str],
                 'center': center,
                 'slope': slope,
                 'n': n,
-                'seed': seed
+                'seed': seed,
+                'algorithm': algorithm_name
             }
             all_results.append(result)
             
@@ -103,15 +116,15 @@ def run_experiment(generator_names: List[str],
             
             # Generate plot for first trial of each distribution
             if plot_examples and trial == 0:
-                plot_title = f"{dist_name.capitalize()} Distribution - {n} Points"
-                plot_filename = f"{dist_name.lower().replace(' ', '_')}_{n}.png"
+                plot_title = f"{dist_name.capitalize()} Distribution - {n} Points ({algorithm_name})"
+                plot_filename = f"{dist_name.lower().replace(' ', '_')}_{n}_{algorithm_name}.png"
                 save_path = os.path.join(plots_dir, plot_filename)
                 plot_result(points, center, slope, title=plot_title, save_path=save_path, 
                            quadrant_counts=quadrant_counts)
     
     # Plot all distributions for comparison
     if plot_examples:
-        comparison_filename = f"all_distributions_{experiment_id}.png"
+        comparison_filename = f"all_distributions_{algorithm_name}_{experiment_id}.png"
         comparison_path = os.path.join(plots_dir, comparison_filename)
         plot_multiple_distributions(distribution_points, save_path=comparison_path)
     
@@ -119,7 +132,7 @@ def run_experiment(generator_names: List[str],
     summary = analyze_results(all_results, n, verbose)
     
     # Save the detailed results as JSON
-    detailed_results_file = os.path.join(results_dir, f"detailed_results_{experiment_id}.json")
+    detailed_results_file = os.path.join(results_dir, f"detailed_results_{algorithm_name}_{experiment_id}.json")
     
     # Convert to JSON-serializable format (tuples to lists)
     json_results = []
@@ -132,7 +145,7 @@ def run_experiment(generator_names: List[str],
         json.dump(json_results, f, indent=2)
     
     # Save the summary as JSON
-    summary_file = os.path.join(results_dir, f"summary_{experiment_id}.json")
+    summary_file = os.path.join(results_dir, f"summary_{algorithm_name}_{experiment_id}.json")
     with open(summary_file, 'w') as f:
         json.dump(summary, f, indent=2)
     
@@ -257,3 +270,137 @@ def analyze_results(results, n, verbose=True):
     }
     
     return summary
+
+
+def compare_algorithms(generator_names: List[str], 
+                      num_points_list: List[int] = [100, 200, 500, 1000, 2000], 
+                      num_trials: int = 5, 
+                      base_seed: int = 42,
+                      verbose: bool = True,
+                      results_dir: str = "results"):
+    """
+    Compare the performance of the original and efficient algorithms.
+    
+    Args:
+        generator_names: List of generator names to test
+        num_points_list: List of point counts to test
+        num_trials: Number of trials for each configuration
+        base_seed: Base random seed for reproducibility
+        verbose: Whether to print detailed output
+        results_dir: Directory to save results
+        
+    Returns:
+        Dictionary with comparison results
+    """
+    # Ensure results directory exists
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Create timestamp for this experiment run
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    comparison_id = f"comparison_{timestamp}"
+    
+    # Results tracking
+    comparison_results = {
+        'comparison_id': comparison_id,
+        'timestamp': datetime.datetime.now().isoformat(),
+        'num_trials': num_trials,
+        'base_seed': base_seed,
+        'generators': generator_names,
+        'points_counts': num_points_list,
+        'results': {}
+    }
+    
+    if verbose:
+        print(f"\nComparing algorithms across {len(generator_names)} distributions and {len(num_points_list)} point counts")
+        print(f"Running {num_trials} trials for each configuration")
+        print("=" * 80)
+        print(f"{'Points':<10} {'Distribution':<15} {'Algorithm':<10} {'Avg Time (s)':<15} {'Valid %':<10} {'Speedup':<10}")
+        print("=" * 80)
+    
+    # Run tests for each point count
+    for n in num_points_list:
+        comparison_results['results'][n] = {}
+        
+        for dist_name in generator_names:
+            generator = get_generator(dist_name)
+            comparison_results['results'][n][dist_name] = {'original': {}, 'efficient': {}}
+            
+            # Create seeds for all trials
+            seeds = [base_seed + i for i in range(num_trials)]
+            
+            # Generate point sets for all trials
+            point_sets = [generator.generate(n, seed=seed) for seed in seeds]
+            
+            # Test original algorithm
+            original_times = []
+            original_valid_count = 0
+            
+            for points in point_sets:
+                # Measure execution time
+                start_time = time.time()
+                center, slope = orthogonal_equipartition(points)
+                execution_time = time.time() - start_time
+                original_times.append(execution_time)
+                
+                # Check if equipartition is valid
+                quadrant_counts = count_points_in_quadrants(points, center, slope)
+                is_valid = is_equipartition_valid(quadrant_counts, n)
+                if is_valid:
+                    original_valid_count += 1
+            
+            original_avg_time = sum(original_times) / len(original_times)
+            original_valid_percent = (original_valid_count / num_trials) * 100
+            
+            # Test efficient algorithm
+            efficient_times = []
+            efficient_valid_count = 0
+            
+            for points in point_sets:
+                # Measure execution time
+                start_time = time.time()
+                center, slope = orthogonal_equipartition_efficient(points)
+                execution_time = time.time() - start_time
+                efficient_times.append(execution_time)
+                
+                # Check if equipartition is valid
+                quadrant_counts = count_points_in_quadrants(points, center, slope)
+                is_valid = is_equipartition_valid(quadrant_counts, n)
+                if is_valid:
+                    efficient_valid_count += 1
+            
+            efficient_avg_time = sum(efficient_times) / len(efficient_times)
+            efficient_valid_percent = (efficient_valid_count / num_trials) * 100
+            
+            # Calculate speedup
+            speedup = original_avg_time / efficient_avg_time if efficient_avg_time > 0 else float('inf')
+            
+            # Store results
+            comparison_results['results'][n][dist_name]['original'] = {
+                'avg_time': original_avg_time,
+                'valid_percent': original_valid_percent,
+                'times': original_times,
+                'valid_count': original_valid_count
+            }
+            
+            comparison_results['results'][n][dist_name]['efficient'] = {
+                'avg_time': efficient_avg_time,
+                'valid_percent': efficient_valid_percent,
+                'times': efficient_times,
+                'valid_count': efficient_valid_count,
+                'speedup': speedup
+            }
+            
+            if verbose:
+                print(f"{n:<10} {dist_name:<15} {'Original':<10} {original_avg_time:<15.6f} {original_valid_percent:<10.1f} {'-':<10}")
+                print(f"{'':<10} {'':<15} {'Efficient':<10} {efficient_avg_time:<15.6f} {efficient_valid_percent:<10.1f} {speedup:<10.2f}x")
+        
+    # Save the comparison results as JSON
+    comparison_file = os.path.join(results_dir, f"algorithm_comparison_{comparison_id}.json")
+    
+    with open(comparison_file, 'w') as f:
+        json.dump(comparison_results, f, indent=2)
+    
+    if verbose:
+        print(f"\nComparison results saved to: {comparison_file}")
+    
+    return comparison_results

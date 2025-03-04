@@ -1,6 +1,7 @@
 import math
 from typing import List, Tuple
 
+
 def orthogonal_equipartition(points: List[Tuple[float, float]]) -> Tuple[Tuple[float, float], float]:
     """
     Find two perpendicular lines that equipartition the given points.
@@ -15,10 +16,12 @@ def orthogonal_equipartition(points: List[Tuple[float, float]]) -> Tuple[Tuple[f
     """
     n = len(points)
     
+    # Review: Not the most readable. Use library function instead?
     # Sort points by x and y coordinates
     points_by_x = sorted(points, key=lambda p: p[0])
     points_by_y = sorted(points, key=lambda p: p[1])
     
+    # Review: ditto review as the sorting method before.
     # Step 1: Find median points and initial halving lines
     median_x = points_by_x[n // 2][0]
     median_y = points_by_y[n // 2][1]
